@@ -1,0 +1,13 @@
+{
+  "name": "bhabhi-online",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Online multiplayer implementation of the traditional Bhabhi card game.",
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev": "echo \"Run apps individually\"",
+    "build": "echo \"Build apps individually\"",
+    "lint": "echo \"Lint apps individually\"",
+    "format": "echo \"Format apps individually\""
+  }
+}
