@@ -427,7 +427,7 @@ socket.on("connect_error", (err) => {
   const createRoom = (playerName: string) => {
     const trimmedName = playerName.trim();
 
-    if (!trimmedName) {
+    if (!trimmedName  || !socket ) {
       setError("Player name is required");
       return;
     }
@@ -446,7 +446,7 @@ socket.on("connect_error", (err) => {
       return;
     }
 
-    if (!trimmedName) {
+    if (!trimmedName  || !socket) {
       setError("Player name is required");
       return;
     }
@@ -461,7 +461,7 @@ socket.on("connect_error", (err) => {
   };
 
   const leaveRoom = () => {
-    if (!room) {
+    if (!room || !socket) {
       return;
     }
 
@@ -476,7 +476,7 @@ socket.on("connect_error", (err) => {
   };
 
   const returnToLobby = () => {
-    if (!room) {
+    if (!room || !socket) {
       return;
     }
 
@@ -485,7 +485,7 @@ socket.on("connect_error", (err) => {
   };
 
   const startGame = () => {
-    if (!room || room.hostId !== socketId) {
+    if (!room || room.hostId !== socketId || !socket) {
       return;
     }
 
@@ -494,7 +494,7 @@ socket.on("connect_error", (err) => {
   };
 
   const playCard = (card: GameCard) => {
-    if (!gameState) {
+    if (!gameState || !socket) {
       return;
     }
     
@@ -508,7 +508,7 @@ socket.on("connect_error", (err) => {
   };
   
   const callThulla = () => {
-    if (!thullaState || !room) return;
+    if (!thullaState || !room || !socket) return;
     socket.emit("thulla-button-clicked", { roomCode: room.roomCode });
    };
 
