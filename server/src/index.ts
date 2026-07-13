@@ -8,6 +8,6 @@ const server = http.createServer(app);
 
 initSocket(server);
 
-server.listen(env.port, () => {
-  console.log(`Server listening on port ${env.port}`);
+server.listen(env.port, '0.0.0.0', () => {
+  console.log(`Server listening on http://0.0.0.0:${env.port}`);
 });

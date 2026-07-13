@@ -80,6 +80,7 @@ export interface CardPlayedResult {
   card: Card;
   nextTurnPlayerId: string;
   thullaRecipientId?: string;
+  thullaBreakerId?: string;
   players: Array<{
     id: string;
     name: string;
@@ -200,16 +201,25 @@ export class GameManager {
         throw new Error('Cannot resolve thulla without a lead player');
       }
 
-      playedCards = [
-        ...gameState.tableCards,
-        {
-          playerId,
-          card: playedCard
-        }
+      const receiver = gameState.players.find((entry) => entry.id === receiverId);
+
+      if (!receiver) {
+        throw new Error('Receiver not found');
+      }
+
+      // Gather cards to transfer (table cards + thulla card)
+      const cardsToTransfer = [
+        ...gameState.tableCards.map((tc) => tc.card),
+        playedCard
       ];
 
-      this.transferTrickCards(gameState, receiverId, playedCards);
+      // Remove the transferred cards from the table state
       gameState.tableCards = [];
+      playedCards = [];
+
+      // Add the transferred cards to the receiver's hand
+      receiver.hand.push(...cardsToTransfer);
+
       gameState.currentTrickPlayerIds = gameState.players
         .filter((entry) => entry.hand.length > 0)
         .map((entry) => entry.id);
@@ -247,6 +257,7 @@ export class GameManager {
 
     if (isThulla) {
       result.thullaRecipientId = nextTurnPlayerId;
+      result.thullaBreakerId = playerId;
     }
 
     if (trickEnded) {

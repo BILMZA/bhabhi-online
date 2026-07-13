@@ -8,6 +8,8 @@ type GameScreenProps = {
   socketId: string | null;
   resolvedTrickCards: Array<{ playerId: string; card: GameCard }>;
   onPlayCard: (card: GameCard) => void;
+  thullaState: { playerId: string; expiresAt: number } | null;
+  onCallThulla: () => void;
 };
 
 const formatCard = (suit: GameCard["suit"], rank: GameCard["rank"]) => {
@@ -38,6 +40,39 @@ const getSuitColorClass = (suit: GameCard["suit"]) => {
   return suit === "hearts" || suit === "diamonds" ? "text-rose-600" : "text-slate-950";
 };
 
+// Sorting helpers — top-level, used to group hand cards by suit then rank
+const suitOrder: Record<GameCard["suit"], number> = {
+  spades: 0,
+  hearts: 1,
+  diamonds: 2,
+  clubs: 3
+};
+
+const rankOrder: Record<GameCard["rank"], number> = {
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+  "6": 6,
+  "7": 7,
+  "8": 8,
+  "9": 9,
+  "10": 10,
+  J: 11,
+  Q: 12,
+  K: 13,
+  A: 14
+};
+
+const sortHand = (hand: GameCard[]) => {
+  return [...hand].sort((a, b) => {
+    if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+      return suitOrder[a.suit] - suitOrder[b.suit];
+    }
+    return rankOrder[a.rank] - rankOrder[b.rank];
+  });
+};
+
 const CardView = ({ card }: { card: GameCard }) => {
   const colorClass = getSuitColorClass(card.suit);
 
@@ -63,12 +98,18 @@ export const GameScreen = ({
   trickWinnerName,
   socketId,
   resolvedTrickCards,
-  onPlayCard
+  onPlayCard,
+  thullaState,
+  onCallThulla
 }: GameScreenProps) => {
   const dealer = gameState.players.find((player) => player.id === gameState.dealerId);
   const currentTurn = gameState.players.find((player) => player.id === gameState.currentTurnPlayerId);
   const isMyTurn = socketId === gameState.currentTurnPlayerId;
   const visibleTableCards = gameState.tableCards.length > 0 ? gameState.tableCards : resolvedTrickCards;
+  const sortedHand = sortHand(gameState.hand);
+
+  const isMyThulla = thullaState?.playerId === socketId;
+  const isThullaActive = isMyThulla && Date.now() < (thullaState?.expiresAt ?? 0);
 
   return (
     <section className="grid gap-6 rounded-[2rem] border border-white/10 bg-white/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur dark:bg-slate-950/70">
@@ -102,6 +143,20 @@ export const GameScreen = ({
           Trick won by {trickWinnerName}
         </div>
       ) : null}
+
+      {/* Thulla button — always visible, only clickable by the right player during the window */}
+      <button
+        type="button"
+        onClick={onCallThulla}
+        disabled={!isThullaActive}
+        className={`h-14 rounded-2xl px-5 text-sm font-bold uppercase tracking-[0.2em] transition ${
+          isThullaActive
+            ? "bg-amber-500 text-white hover:bg-amber-400 animate-pulse cursor-pointer"
+            : "bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600"
+        }`}
+      >
+        Thulla!
+      </button>
 
       <div className="relative min-h-[360px] rounded-[2rem] border border-slate-200 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] dark:border-slate-800">
         <div className="grid h-full gap-5">
@@ -171,7 +226,7 @@ export const GameScreen = ({
           </p>
         </div>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {gameState.hand.map((card) => (
+          {sortedHand.map((card) => (
             <li key={`${card.rank}-${card.suit}`}>
               <button
                 type="button"

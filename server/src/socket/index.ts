@@ -2,7 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { GameManager } from '../services/GameManager';
 import { RoomManager } from '../services/RoomManager';
-
+const pendingThullas = new Map<string, { playerId: string; expiresAt: number }>();
 interface CreateRoomPayload {
   playerName?: string;
 }
@@ -58,6 +58,10 @@ export const initSocket = (httpServer: HttpServer) => {
     cors: {
       origin: '*'
     }
+  });
+
+ io.engine.on('connection_error', (err) => {
+    console.log('CONNECTION ERROR:', err.code, err.message, err.context);
   });
 
   io.on('connection', (socket) => {
@@ -197,6 +201,35 @@ export const initSocket = (httpServer: HttpServer) => {
         });
 
         io.to(roomCode).emit('card-played', result);
+        
+           if (result.thullaBreakerId) {
+          const expiresAt = Date.now() + 5000;
+          pendingThullas.set(roomCode, {
+            playerId: result.thullaBreakerId,
+            expiresAt
+          });
+
+          io.to(roomCode).emit('thulla-declared', {
+            playerId: result.thullaBreakerId,
+            expiresAt
+          });
+
+          setTimeout(() => {
+            const pending = pendingThullas.get(roomCode);
+            if (pending && pending.expiresAt <= Date.now()) {
+              pendingThullas.delete(roomCode);
+            }
+          }, 5100);
+        }
+
+        if (result.thullaRecipientId) {
+          const receiver = gameManager.getGame(roomCode)?.players.find((p) => p.id === result.thullaRecipientId);
+          if (receiver) {
+            io.to(result.thullaRecipientId).emit('hand-updated', {
+              hand: receiver.hand
+            });
+          }
+        }
 
         if (result.trickEnded) {
           io.to(roomCode).emit('trick-ended', result.trickEnded);
@@ -212,6 +245,31 @@ export const initSocket = (httpServer: HttpServer) => {
         });
       }
     });
+
+
+socket.on('thulla-button-clicked', (payload: { roomCode?: string } = {}) => {
+      try {
+        const roomCode = payload.roomCode?.trim() || getActiveRoomCode(socket);
+
+        if (!roomCode) {
+          throw new Error('You are not in a room');
+        }
+
+        const pending = pendingThullas.get(roomCode);
+
+        if (!pending) return;                          // no active thulla
+        if (pending.playerId !== socket.id) return;     // not the right player
+        if (Date.now() > pending.expiresAt) return;      // window expired
+
+        pendingThullas.delete(roomCode);
+        io.to(roomCode).emit('thulla-sound');
+      } catch (error) {
+        socket.emit('error', {
+          message: getErrorMessage(error)
+        });
+      }
+    });
+
 
     socket.on('play-again', (payload: PlayAgainPayload = {}) => {
       try {

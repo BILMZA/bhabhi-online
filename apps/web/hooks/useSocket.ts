@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -42,6 +43,11 @@ export type FinalStanding = {
   playerId: string;
   playerName: string;
   tricksWon: number;
+};
+
+type ThullaDeclaredPayload = {
+  playerId: string;
+  expiresAt: number;
 };
 
 type PendingAction =
@@ -103,11 +109,26 @@ type ErrorPayload = {
 };
 
 export const useSocket = () => {
-  const socket = useMemo(() => getSocket(), []);
-  const [socketId, setSocketId] = useState<string | null>(socket.id ?? null);
-  const [connectionState, setConnectionState] = useState<
-    "connecting" | "connected" | "disconnected"
-  >(socket.connected ? "connected" : "disconnected");
+  
+  
+const socket = useMemo(() => {
+  try {
+    return getSocket();
+  } catch (err) {
+    console.error("getSocket failed:", err);
+    return null;
+  }
+}, []);
+
+const [socketId, setSocketId] = useState<string | null>(null);
+
+const [connectionState, setConnectionState] = useState<
+  "connecting" | "connected" | "disconnected"
+>("disconnected");
+
+
+
+const [thullaState, setThullaState] = useState<ThullaDeclaredPayload | null>(null);
   const [room, setRoom] = useState<LobbyRoom | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [trickResult, setTrickResult] = useState<TrickEndedPayload | null>(null);
@@ -118,16 +139,32 @@ export const useSocket = () => {
   const [error, setError] = useState<string | null>(null);
   const pendingActionRef = useRef<PendingAction>(null);
 
-  useEffect(() => {
-    const handleConnect = () => {
-      setConnectionState("connected");
-      setSocketId(socket.id ?? null);
-    };
 
-    const handleDisconnect = () => {
-      setConnectionState("disconnected");
-      setSocketId(null);
-    };
+
+
+  useEffect(() => {
+    
+if (!socket) {
+  return;
+}
+    console.log("EFFECT RUN — connected:", socket.connected, "id:", socket.id);
+
+
+
+    const handleConnect = () => {
+  console.log("HANDLE CONNECT", socket.id);
+  setConnectionState("connected");
+  setSocketId(socket.id ?? null);
+};
+
+const handleDisconnect = (reason: string) => {
+  console.log("DISCONNECT:", reason);
+
+  if (reason === "io client disconnect") {
+    setConnectionState("disconnected");
+    setSocketId(null);
+  }
+};
 
     const handleRoomCreated = (payload: RoomCreatedPayload) => {
       const pendingAction = pendingActionRef.current;
@@ -158,12 +195,12 @@ export const useSocket = () => {
     };
 
     const handlePlayerJoined = (payload: PlayerJoinedPayload) => {
-      setRoom((currentRoom) => {
+      setRoom((currentRoom: LobbyRoom | null) => {
         if (!currentRoom) {
           return currentRoom;
         }
 
-        if (currentRoom.players.some((player) => player.id === payload.player.id)) {
+        if (currentRoom.players.some((player: LobbyPlayer) => player.id === payload.player.id)) {
           return currentRoom;
         }
 
@@ -179,13 +216,13 @@ export const useSocket = () => {
     };
 
     const handlePlayerLeft = (payload: PlayerLeftPayload) => {
-      setRoom((currentRoom) => {
+      setRoom((currentRoom: LobbyRoom | null) => {
         if (!currentRoom) {
           return currentRoom;
         }
 
         const nextPlayers = currentRoom.players.filter(
-          (player) => player.id !== payload.playerId
+          (player: LobbyPlayer) => player.id !== payload.playerId
         );
 
         if (nextPlayers.length === 0) {
@@ -214,7 +251,7 @@ export const useSocket = () => {
       setTrickResult(null);
       setGameResult(null);
       setResolvedTrickCards([]);
-      setRoom((currentRoom) => {
+      setRoom((currentRoom: LobbyRoom | null) => {
         if (!currentRoom) {
           return currentRoom;
         }
@@ -230,7 +267,7 @@ export const useSocket = () => {
     const handleCardPlayed = (payload: CardPlayedPayload) => {
       setResolvedTrickCards([]);
 
-      setGameState((currentGameState) => {
+      setGameState((currentGameState: GameState | null) => {
         if (!currentGameState || currentGameState.roomCode !== payload.roomCode) {
           return currentGameState;
         }
@@ -242,9 +279,9 @@ export const useSocket = () => {
           hand:
             payload.playerId === socket.id
               ? currentGameState.hand.filter(
-                  (entry) =>
-                    !(entry.rank === payload.card.rank && entry.suit === payload.card.suit)
-                )
+                (entry: GameCard) =>
+                  !(entry.rank === payload.card.rank && entry.suit === payload.card.suit)
+              )
               : currentGameState.hand,
           tableCards: payload.tableCards
         };
@@ -257,7 +294,7 @@ export const useSocket = () => {
       setTrickResult(payload);
       setResolvedTrickCards(payload.playedCards);
 
-      setGameState((currentGameState) => {
+      setGameState((currentGameState: GameState | null) => {
         if (!currentGameState || currentGameState.roomCode !== payload.roomCode) {
           return currentGameState;
         }
@@ -276,7 +313,7 @@ export const useSocket = () => {
       setGameState(null);
       setTrickResult(null);
       setResolvedTrickCards([]);
-      setRoom((currentRoom) => {
+      setRoom((currentRoom: LobbyRoom | null) => {
         if (!currentRoom) {
           return currentRoom;
         }
@@ -295,6 +332,47 @@ export const useSocket = () => {
       setResolvedTrickCards([]);
     };
 
+   const handleHandUpdated = (payload: { hand: GameCard[] }) => {
+      setGameState((currentGameState: GameState | null) => {
+        if (!currentGameState) {
+          return currentGameState;
+        }
+
+        return {
+          ...currentGameState,
+          hand: payload.hand
+        };
+      });
+    };
+
+    const handleThullaDeclared = (payload: ThullaDeclaredPayload) => {
+       console.log("THULLA DECLARED:", payload);   // NEW
+      setThullaState(payload);
+
+      const timeLeft = payload.expiresAt - Date.now();
+      setTimeout(() => {
+        setThullaState((current) =>
+          current?.playerId === payload.playerId && current?.expiresAt === payload.expiresAt
+            ? null
+            : current
+        );
+      }, Math.max(timeLeft, 0));
+    };
+
+    const handleThullaSound = () => {
+      const audio = new Audio("/sounds/pom-pom.mp3");
+      audio.play().catch(() => {});
+    };
+
+    socket.on("thulla-declared", handleThullaDeclared);
+    socket.on("thulla-sound", handleThullaSound);
+    socket.on("connect", handleConnect);
+    
+
+
+  
+    socket.on("thulla-declared", handleThullaDeclared);
+    socket.on("thulla-sound", handleThullaSound);
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("room-created", handleRoomCreated);
@@ -306,7 +384,21 @@ export const useSocket = () => {
     socket.on("trick-ended", handleTrickEnded);
     socket.on("game-ended", handleGameEnded);
     socket.on("return-to-lobby", handleReturnToLobby);
+    socket.on("hand-updated", handleHandUpdated);
     socket.on("error", handleError);
+
+    
+socket.on("connect", () => {
+  console.log("CONNECTED", socket.id);
+});
+
+socket.on("disconnect", (reason) => {
+  console.log("DISCONNECTED", reason);
+});
+
+socket.on("connect_error", (err) => {
+  console.log("CONNECT ERROR", err.message);
+});
 
     if (!socket.connected) {
       setConnectionState("connecting");
@@ -314,6 +406,8 @@ export const useSocket = () => {
     }
 
     return () => {
+      socket.off("thulla-declared", handleThullaDeclared);
+      socket.off("thulla-sound", handleThullaSound);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("room-created", handleRoomCreated);
@@ -325,6 +419,7 @@ export const useSocket = () => {
       socket.off("trick-ended", handleTrickEnded);
       socket.off("game-ended", handleGameEnded);
       socket.off("return-to-lobby", handleReturnToLobby);
+      socket.off("hand-updated", handleHandUpdated);
       socket.off("error", handleError);
     };
   }, [socket]);
@@ -402,6 +497,8 @@ export const useSocket = () => {
     if (!gameState) {
       return;
     }
+    
+    
 
     setError(null);
     socket.emit("play-card", {
@@ -409,6 +506,11 @@ export const useSocket = () => {
       card
     });
   };
+  
+  const callThulla = () => {
+    if (!thullaState || !room) return;
+    socket.emit("thulla-button-clicked", { roomCode: room.roomCode });
+   };
 
   const clearError = () => {
     setError(null);
@@ -423,12 +525,14 @@ export const useSocket = () => {
     trickResult,
     gameResult,
     resolvedTrickCards,
+    thullaState,
     createRoom,
     joinRoom,
     leaveRoom,
     returnToLobby,
     startGame,
     playCard,
+    callThulla,
     clearError
   };
 };

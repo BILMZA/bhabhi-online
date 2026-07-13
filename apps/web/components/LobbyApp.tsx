@@ -19,12 +19,14 @@ export const LobbyApp = () => {
     trickResult,
     gameResult,
     resolvedTrickCards,
+    thullaState, 
     createRoom,
     joinRoom,
     leaveRoom,
     returnToLobby,
     startGame,
     playCard,
+    callThulla, 
     clearError
   } = useSocket();
 
@@ -74,6 +76,8 @@ export const LobbyApp = () => {
             socketId={socketId}
             resolvedTrickCards={resolvedTrickCards}
             onPlayCard={playCard}
+            thullaState={thullaState}      // NEW
+            onCallThulla={callThulla}       // NEW
           />
         ) : room ? (
           <LobbyView

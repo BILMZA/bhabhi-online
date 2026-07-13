@@ -1,5 +1,5 @@
-import { LobbyApp } from "@/components/LobbyApp";
+import ClientLobbyApp from "@/components/ClientLobbyApp";
 
 export default function Home() {
-  return <LobbyApp />;
+  return <ClientLobbyApp />;
 }
