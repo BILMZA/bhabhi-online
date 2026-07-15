@@ -35,7 +35,7 @@ export const LobbyApp = () => {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <header className="grid gap-3 text-center sm:text-left">
           <p className="text-sm font-semibold uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
-            Bhabhi Online
+            Thulla Online
           </p>
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
             Multiplayer lobby
